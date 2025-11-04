@@ -100,8 +100,17 @@ try:
         parse_mode=ParseMode.HTML
     )
 
+    # Use the manually created loop directly for scheduler
     sch = AsyncIOScheduler(timezone="Asia/Kolkata", event_loop=loop)
-    bot_loop = loop
+
+    # Start bot properly
+    async def main():
+        await bot.start()
+        LOGS.info("Bot started successfully!")
+        sch.start()
+        await asyncio.Event().wait()  # Keep running forever
+
+    loop.run_until_complete(main())
 
 except Exception as ee:
     LOGS.error(str(ee))
