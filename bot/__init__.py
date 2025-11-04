@@ -1,7 +1,9 @@
+
 from os import path as ospath, mkdir, system, getenv
 from logging import INFO, ERROR, FileHandler, StreamHandler, basicConfig, getLogger
 from traceback import format_exc
 from asyncio import Queue, Lock
+import asyncio
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import Client
@@ -9,17 +11,24 @@ from pyrogram.enums import ParseMode
 from dotenv import load_dotenv
 from uvloop import install
 
+# Use uvloop for better performance
 install()
-basicConfig(format="[%(asctime)s] [%(name)s | %(levelname)s] - %(message)s [%(filename)s:%(lineno)d]",
-            datefmt="%m/%d/%Y, %H:%M:%S %p",
-            handlers=[FileHandler('log.txt'), StreamHandler()],
-            level=INFO)
+
+# Logging setup
+basicConfig(
+    format="[%(asctime)s] [%(name)s | %(levelname)s] - %(message)s [%(filename)s:%(lineno)d]",
+    datefmt="%m/%d/%Y, %H:%M:%S %p",
+    handlers=[FileHandler('log.txt'), StreamHandler()],
+    level=INFO
+)
 
 getLogger("pyrogram").setLevel(ERROR)
 LOGS = getLogger(__name__)
 
+# Load environment variables
 load_dotenv('config.env')
 
+# Caches
 ani_cache = {
     'fetch_animes': True,
     'ongoing': set(),
@@ -31,10 +40,11 @@ ffLock = Lock()
 ffQueue = Queue()
 ff_queued = dict()
 
+# Configuration class
 class Var:
     API_ID, API_HASH, BOT_TOKEN = getenv("API_ID"), getenv("API_HASH"), getenv("BOT_TOKEN")
     MONGO_URI = getenv("MONGO_URI")
-    
+
     if not BOT_TOKEN or not API_HASH or not API_ID or not MONGO_URI:
         LOGS.critical('Important Variables Missing. Fill Up and Retry..!! Exiting Now...')
         exit(1)
@@ -46,7 +56,7 @@ class Var:
     LOG_CHANNEL = int(getenv("LOG_CHANNEL") or 0)
     FILE_STORE = int(getenv("FILE_STORE"))
     ADMINS = list(map(int, getenv("ADMINS", "1242011540").split()))
-    
+
     SEND_SCHEDULE = getenv("SEND_SCHEDULE", "False").lower() == "true"
     BRAND_UNAME = getenv("BRAND_UNAME", "@username")
     FFCODE_1080 = getenv("FFCODE_1080") or """ffmpeg -i '{}' -progress '{}' -preset veryfast -c:v libx264 -s 1920x1080 -pix_fmt yuv420p -crf 30 -c:a libopus -b:a 32k -c:s copy -map 0 -ac 2 -ab 32k -vbr 2 -level 3.1 '{}' -y"""
@@ -54,7 +64,7 @@ class Var:
     FFCODE_480 = getenv("FFCODE_480") or """ffmpeg -i '{}' -progress '{}' -preset superfast -c:v libx264 -s 854x480 -pix_fmt yuv420p -crf 30 -c:a libopus -b:a 32k -c:s copy -map 0 -ac 2 -ab 32k -vbr 2 -level 3.1 '{}' -y"""
     FFCODE_360 = getenv("FFCODE_360") or """ffmpeg -i '{}' -progress '{}' -preset superfast -c:v libx264 -s 640x360 -pix_fmt yuv420p -crf 30 -c:a libopus -b:a 32k -c:s copy -map 0 -ac 2 -ab 32k -vbr 2 -level 3.1 '{}' -y"""
     QUALS = getenv("QUALS", "360 480 720 1080").split()
-    
+
     AS_DOC = getenv("AS_DOC", "True").lower() == "true"
     THUMB = getenv("THUMB", "https://te.legra.ph/file/621c8d40f9788a1db7753.jpg")
     AUTO_DEL = getenv("AUTO_DEL", "True").lower() == "true"
@@ -63,9 +73,12 @@ class Var:
     START_MSG = getenv("START_MSG", "<b>Hey {first_name}</b>,\n\n    <i>I am Auto Animes Store & Automater Encoder Build with ❤️ !!</i>")
     START_BUTTONS = getenv("START_BUTTONS", "UPDATES|https://telegram.me/Matiz_Tech SUPPORT|https://t.me/+p78fp4UzfNwzYzQ5")
 
+
+# Ensure required folders and thumbnail exist
 if Var.THUMB and not ospath.exists("thumb.jpg"):
     system(f"wget -q {Var.THUMB} -O thumb.jpg")
     LOGS.info("Thumbnail has been Saved!!")
+
 if not ospath.isdir("encode/"):
     mkdir("encode/")
 if not ospath.isdir("thumbs/"):
@@ -73,10 +86,23 @@ if not ospath.isdir("thumbs/"):
 if not ospath.isdir("downloads/"):
     mkdir("downloads/")
 
+# 🔧 FIX: Proper event loop setup
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
 try:
-    bot = Client(name="AutoAniAdvance", api_id=Var.API_ID, api_hash=Var.API_HASH, bot_token=Var.BOT_TOKEN, plugins=dict(root="bot/modules"), parse_mode=ParseMode.HTML)
-    bot_loop = bot.loop
-    sch = AsyncIOScheduler(timezone="Asia/Kolkata", event_loop=bot_loop)
+    bot = Client(
+        name="AutoAniAdvance",
+        api_id=Var.API_ID,
+        api_hash=Var.API_HASH,
+        bot_token=Var.BOT_TOKEN,
+        plugins=dict(root="bot/modules"),
+        parse_mode=ParseMode.HTML
+    )
+
+    sch = AsyncIOScheduler(timezone="Asia/Kolkata", event_loop=loop)
+    bot_loop = loop
+
 except Exception as ee:
     LOGS.error(str(ee))
     exit(1)
