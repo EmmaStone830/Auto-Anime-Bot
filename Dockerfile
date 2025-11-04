@@ -12,4 +12,4 @@ COPY --from=mwader/static-ffmpeg:6.1 /ffprobe /bin/ffprobe
 COPY . .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-CMD ["bash","run.sh"]
+CMD ["python3", "bot.py"]
